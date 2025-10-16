@@ -161,6 +161,9 @@ def show_login_page():
 
     # Handle the OAuth callback
     if result and 'token' in result:
+        logging.info("OAuth callback received")
+        logging.info(f"Token keys: {result['token'].keys() if result['token'] else 'None'}")
+
         # Store the token in session state
         st.session_state.token = result['token']
 
@@ -169,15 +172,29 @@ def show_login_page():
 
         if access_token:
             st.session_state.access_token = access_token
+            logging.info("Access token extracted successfully")
 
             # Fetch user information
-            user_info = get_user_info(access_token)
-            if user_info:
-                st.session_state.user_info = user_info
-                logging.info(f"User logged in: {user_info.get('email', 'Unknown')}")
+            try:
+                user_info = get_user_info(access_token)
+                if user_info:
+                    st.session_state.user_info = user_info
+                    logging.info(f"User logged in: {user_info.get('email', 'Unknown')}")
+                    st.success("Authentication successful! Redirecting...")
+                else:
+                    logging.warning("get_user_info() returned None")
+                    st.warning("⚠️ Authentication succeeded but failed to retrieve user information. Redirecting anyway...")
+            except Exception as e:
+                logging.error(f"Error fetching user info: {str(e)}")
+                st.error(f"Error fetching user information: {str(e)}")
+        else:
+            logging.error("No access_token in OAuth response")
+            st.error("OAuth response missing access_token")
 
-        st.success("Authentication successful! Redirecting...")
         st.rerun()
+    elif result:
+        logging.warning(f"OAuth callback received but no token. Result keys: {result.keys()}")
+        st.error(f"Authentication failed: No token in response. Keys: {list(result.keys())}")
 
     st.markdown("---")
     st.markdown(f"<div style='text-align: center;'><p style='font-family: -apple-system, BlinkMacSystemFont;'>A specialized tool for generating safety analysis documentation<br>Developed by JSC EC4<br>Date: {datetime.date.today()}</p></div>", unsafe_allow_html=True)
@@ -187,6 +204,20 @@ def show_sage_app():
     """Display the main SAGE application (authenticated users only)."""
     st.image("./images/NasaControlRoom.jpg", width=800)
     st.markdown("<h1 style='text-align: center;'>SAGE<br><span style='font-size: 0.8em;'>Safety Analysis Generation Engine</span></h1>", unsafe_allow_html=True)
+
+    # Debug panel (temporary - remove in production)
+    with st.expander("🔍 Debug: Session State", expanded=False):
+        st.write("**Token exists:**", 'token' in st.session_state)
+        st.write("**Access token exists:**", 'access_token' in st.session_state)
+        st.write("**User info exists:**", 'user_info' in st.session_state)
+
+        if 'token' in st.session_state:
+            st.write("**Token keys:**", list(st.session_state.token.keys()) if st.session_state.token else "None")
+
+        if 'user_info' in st.session_state:
+            st.write("**User info:**", st.session_state.user_info)
+        else:
+            st.warning("⚠️ User info not loaded - get_user_info() may have failed")
 
     # Display user info in sidebar
     display_user_info()

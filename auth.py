@@ -130,22 +130,34 @@ def get_user_info(access_token: str) -> Optional[Dict[str, Any]]:
         userinfo_endpoint = st.session_state.oidc_metadata.get_userinfo_endpoint()
 
         if not userinfo_endpoint:
-            logger.warning("Userinfo endpoint not available")
+            logger.warning("Userinfo endpoint not available in OIDC metadata")
+            logger.warning("This may indicate NASA Launchpad doesn't provide a userinfo endpoint")
             return None
+
+        logger.info(f"Fetching user info from: {userinfo_endpoint}")
 
         headers = {
             "Authorization": f"Bearer {access_token}"
         }
 
         response = requests.get(userinfo_endpoint, headers=headers, timeout=10)
+
+        logger.info(f"Userinfo response status: {response.status_code}")
+
         response.raise_for_status()
 
         user_info = response.json()
-        logger.info("Successfully fetched user information")
+        logger.info(f"Successfully fetched user information: {list(user_info.keys())}")
         return user_info
 
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"HTTP error fetching user info: {e.response.status_code} - {e.response.text}")
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error fetching user info: {str(e)}")
+        return None
     except Exception as e:
-        logger.error(f"Failed to fetch user info: {str(e)}")
+        logger.error(f"Unexpected error fetching user info: {type(e).__name__}: {str(e)}")
         return None
 
 
