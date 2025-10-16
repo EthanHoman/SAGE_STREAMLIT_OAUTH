@@ -1,0 +1,16 @@
+# Streamlit Configuration for HTTPS/SSL Support
+# Required for OAuth redirect_uri using https://localhost:8501
+
+[server]
+# SSL Certificate file path
+sslCertFile = "./ssl/cert.pem"
+
+# SSL Private Key file path
+sslKeyFile = "./ssl/key.pem"
+
+# Server port (default is 8501)
+port = 8501
+
+# Enable CORS for OAuth callback
+enableCORS = true
+enableXsrfProtection = false
