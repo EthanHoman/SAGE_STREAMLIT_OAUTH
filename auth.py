@@ -5,6 +5,7 @@ Authentication module for SAGE - NASA Launchpad OIDC Integration
 import streamlit as st
 import requests
 import logging
+import jwt
 from streamlit_oauth import OAuth2Component
 from typing import Optional, Dict, Any
 
@@ -161,6 +162,80 @@ def get_user_info(access_token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def decode_id_token(id_token: str) -> Optional[Dict[str, Any]]:
+    """
+    Decode the JWT id_token to extract user claims.
+
+    Note: This decodes without verification since we trust the token from NASA Launchpad.
+    In production, you should verify the signature using NASA's public keys (JWKS).
+
+    Args:
+        id_token: The JWT id_token from OAuth response
+
+    Returns:
+        Dictionary containing user claims or None if decoding fails
+    """
+    try:
+        # Decode without verification (we trust NASA Launchpad as the issuer)
+        # For production, use verify=True with jwks_uri from OIDC metadata
+        decoded = jwt.decode(id_token, options={"verify_signature": False})
+        logger.info(f"Successfully decoded id_token. Claims: {list(decoded.keys())}")
+        return decoded
+    except jwt.InvalidTokenError as e:
+        logger.error(f"Failed to decode id_token: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error decoding id_token: {type(e).__name__}: {str(e)}")
+        return None
+
+
+def get_user_info_from_token(token_response: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Extract user information from OAuth token response.
+
+    Tries multiple methods:
+    1. Call userinfo endpoint with access_token
+    2. If that fails or returns minimal data, decode id_token
+
+    Args:
+        token_response: Full OAuth token response including id_token and access_token
+
+    Returns:
+        Dictionary containing user information
+    """
+    user_info = None
+
+    # Method 1: Try userinfo endpoint
+    access_token = token_response.get('access_token')
+    if access_token:
+        user_info = get_user_info(access_token)
+
+    # Check if userinfo endpoint returned useful data
+    if user_info and len(user_info) > 1:  # More than just 'sub'
+        logger.info("Using user info from userinfo endpoint")
+        return user_info
+
+    # Method 2: Decode id_token (NASA Launchpad ADFS likely has user claims here)
+    id_token = token_response.get('id_token')
+    if id_token:
+        logger.info("Userinfo endpoint returned minimal data, decoding id_token instead")
+        id_token_claims = decode_id_token(id_token)
+
+        if id_token_claims:
+            # Merge with any existing user_info (to keep 'sub' if present)
+            if user_info:
+                user_info.update(id_token_claims)
+            else:
+                user_info = id_token_claims
+
+            logger.info(f"Extracted user info from id_token: {list(user_info.keys())}")
+            return user_info
+
+    # Fallback: Return whatever we got, even if minimal
+    logger.warning("Could not extract comprehensive user info. Returning minimal data.")
+    return user_info or {'sub': 'unknown'}
+
+
 def check_authentication() -> bool:
     """
     Check if the user is authenticated.
@@ -193,13 +268,29 @@ def display_user_info():
             st.markdown("---")
             st.markdown("### User Information")
 
-            # Display common user attributes
-            if 'name' in user_info:
-                st.markdown(f"**Name:** {user_info['name']}")
-            if 'email' in user_info:
-                st.markdown(f"**Email:** {user_info['email']}")
-            if 'preferred_username' in user_info:
-                st.markdown(f"**Username:** {user_info['preferred_username']}")
+            # Display name (check multiple possible claim names)
+            name = (user_info.get('name') or
+                   user_info.get('unique_name') or
+                   user_info.get('given_name'))
+            if name:
+                st.markdown(f"**Name:** {name}")
+
+            # Display email (check multiple possible claim names)
+            email = (user_info.get('email') or
+                    user_info.get('upn'))  # UPN is often email in ADFS
+            if email:
+                st.markdown(f"**Email:** {email}")
+
+            # Display username (check multiple possible claim names)
+            username = (user_info.get('preferred_username') or
+                       user_info.get('unique_name') or
+                       user_info.get('upn'))
+            if username and username != email:  # Don't show if same as email
+                st.markdown(f"**Username:** {username}")
+
+            # Display sub (subject identifier) if nothing else is available
+            if not (name or email or username):
+                st.markdown(f"**User ID:** {user_info.get('sub', 'Unknown')}")
 
             # Logout button
             if st.button("Logout", key="logout_button", use_container_width=True):

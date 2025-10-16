@@ -18,7 +18,7 @@ import datetime
 from auth import (
     initialize_oauth_component,
     check_authentication,
-    get_user_info,
+    get_user_info_from_token,
     display_user_info,
     logout
 )
@@ -169,27 +169,25 @@ def show_login_page():
 
         # Extract access token
         access_token = result['token'].get('access_token')
-
         if access_token:
             st.session_state.access_token = access_token
             logging.info("Access token extracted successfully")
 
-            # Fetch user information
-            try:
-                user_info = get_user_info(access_token)
-                if user_info:
-                    st.session_state.user_info = user_info
-                    logging.info(f"User logged in: {user_info.get('email', 'Unknown')}")
-                    st.success("Authentication successful! Redirecting...")
-                else:
-                    logging.warning("get_user_info() returned None")
-                    st.warning("⚠️ Authentication succeeded but failed to retrieve user information. Redirecting anyway...")
-            except Exception as e:
-                logging.error(f"Error fetching user info: {str(e)}")
-                st.error(f"Error fetching user information: {str(e)}")
-        else:
-            logging.error("No access_token in OAuth response")
-            st.error("OAuth response missing access_token")
+        # Extract user information (tries userinfo endpoint, then id_token)
+        try:
+            user_info = get_user_info_from_token(result['token'])
+            if user_info:
+                st.session_state.user_info = user_info
+                # Log user identifier
+                user_identifier = user_info.get('email') or user_info.get('name') or user_info.get('preferred_username') or user_info.get('sub', 'Unknown')
+                logging.info(f"User logged in: {user_identifier}")
+                st.success("Authentication successful! Redirecting...")
+            else:
+                logging.warning("Failed to extract user information")
+                st.warning("⚠️ Authentication succeeded but failed to retrieve user information. Redirecting anyway...")
+        except Exception as e:
+            logging.error(f"Error extracting user info: {str(e)}")
+            st.error(f"Error extracting user information: {str(e)}")
 
         st.rerun()
     elif result:
