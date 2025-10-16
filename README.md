@@ -66,16 +66,31 @@ scopes = "openid profile email"
 
 **⚠️ Important**: Contact NASA IT to obtain OAuth credentials and register your redirect URI.
 
-### 4. Setup SSL Certificates
+### 4. Generate SSL Certificates
 
-Self-signed certificates are already generated in `ssl/` directory. For new certificates:
+**IMPORTANT**: SSL certificates are NOT in the repository. Generate them after cloning:
+
+**Quick Method (Recommended):**
+
+```bash
+# Mac/Linux
+./generate_ssl_certs.sh
+
+# Windows PowerShell
+.\generate_ssl_certs.ps1
+```
+
+**Or manually with OpenSSL:**
 
 ```bash
 mkdir -p ssl
 cd ssl
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes \
-  -subj "/C=US/ST=State/L=City/O=NASA/CN=localhost"
+  -subj "/C=US/ST=Texas/L=Houston/O=NASA/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 ```
+
+**For a better experience without browser warnings, use [mkcert](https://github.com/FiloSottile/mkcert)** - see [SETUP_AUTH.md](SETUP_AUTH.md) for detailed instructions and other options.
 
 ### 5. Run Application
 
@@ -128,20 +143,24 @@ See [requirements.txt](requirements.txt) for full list.
 
 ```
 SAGE_STREAMLIT_OAUTH/
-├── pdf-rag-streamlit.py       # Main application
-├── auth.py                     # Authentication module
-├── requirements.txt            # Python dependencies
-├── .gitignore                  # Git ignore rules
-├── SETUP_AUTH.md              # Setup documentation
-├── prepare_for_transfer.sh    # Transfer preparation script
+├── pdf-rag-streamlit.py          # Main application
+├── auth.py                        # Authentication module
+├── requirements.txt               # Python dependencies
+├── .gitignore                     # Git ignore rules
+├── README.md                      # This file
+├── SETUP_AUTH.md                  # Comprehensive setup guide
+├── generate_ssl_certs.sh          # SSL certificate generator (Mac/Linux)
+├── generate_ssl_certs.ps1         # SSL certificate generator (Windows)
+├── prepare_for_transfer.sh        # Transfer preparation script
 ├── .streamlit/
-│   ├── config.toml            # Streamlit configuration
-│   └── secrets.toml           # OAuth credentials (not in repo)
+│   ├── config.toml                # Streamlit configuration
+│   ├── secrets.toml.template      # OAuth credentials template
+│   └── secrets.toml               # OAuth credentials (not in repo)
 ├── ssl/
-│   ├── cert.pem               # SSL certificate (not in repo)
-│   └── key.pem                # SSL private key (not in repo)
-├── data/                      # PDF documents
-└── images/                    # Application assets
+│   ├── cert.pem                   # SSL certificate (not in repo)
+│   └── key.pem                    # SSL private key (not in repo)
+├── data/                          # PDF documents
+└── images/                        # Application assets
 ```
 
 ## Troubleshooting
@@ -198,4 +217,3 @@ Internal NASA use only.
 
 *A specialized tool for generating safety analysis documentation*
 
-🤖 *Authentication integration powered by [Claude Code](https://claude.com/claude-code)*

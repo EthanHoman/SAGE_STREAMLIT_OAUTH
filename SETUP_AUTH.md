@@ -35,13 +35,149 @@ scopes = "openid profile email"
 
 ### 3. SSL Certificate Setup
 
-Self-signed SSL certificates have been generated in the `ssl/` directory:
-- `ssl/cert.pem` - SSL certificate
-- `ssl/key.pem` - SSL private key
+**IMPORTANT**: SSL certificates are not included in the repository (they're in `.gitignore`). You need to generate them on your NASA laptop.
 
-These certificates are valid for 365 days for localhost development.
+#### Option A: Quick Generation with Script (Recommended for Getting Started)
 
-**Note:** Your browser will show a security warning because these are self-signed certificates. This is expected for local development. Click "Advanced" and "Proceed to localhost" to continue.
+**For Mac/Linux:**
+```bash
+./generate_ssl_certs.sh
+```
+
+**For Windows PowerShell:**
+```powershell
+.\generate_ssl_certs.ps1
+```
+
+This generates self-signed certificates in the `ssl/` directory valid for 365 days.
+
+**Browser Security Warning**: You'll see a warning since these are self-signed. This is normal and safe for localhost development.
+
+**To proceed past the warning:**
+- **Chrome/Edge**: Click "Advanced" → "Proceed to localhost (unsafe)"
+- **Firefox**: Click "Advanced" → "Accept the Risk and Continue"
+- **Safari**: Click "Show Details" → "visit this website"
+
+---
+
+#### Option B: Using mkcert (Best Experience - No Browser Warnings)
+
+**What is mkcert?**
+mkcert creates locally-trusted SSL certificates. Your browser won't show security warnings.
+
+**Installation:**
+
+**macOS:**
+```bash
+brew install mkcert
+brew install nss  # if you use Firefox
+```
+
+**Linux:**
+```bash
+# Ubuntu/Debian
+sudo apt install libnss3-tools
+wget https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64
+chmod +x mkcert-v1.4.4-linux-amd64
+sudo mv mkcert-v1.4.4-linux-amd64 /usr/local/bin/mkcert
+
+# Or use your package manager if available
+```
+
+**Windows:**
+```powershell
+# Using Chocolatey
+choco install mkcert
+
+# Or using Scoop
+scoop bucket add extras
+scoop install mkcert
+```
+
+**Generate Certificates:**
+```bash
+# Install local CA (one-time setup)
+mkcert -install
+
+# Generate certificates for localhost
+mkcert localhost 127.0.0.1 ::1
+
+# Move to ssl directory
+mkdir -p ssl
+mv localhost+2.pem ssl/cert.pem
+mv localhost+2-key.pem ssl/key.pem
+```
+
+**Advantages:**
+- ✓ No browser security warnings
+- ✓ Cleaner development experience
+- ✓ Automatic trust in all browsers
+
+---
+
+#### Option C: Manual OpenSSL (For Maximum Control)
+
+**Generate with OpenSSL:**
+```bash
+mkdir -p ssl
+cd ssl
+
+openssl req -x509 -newkey rsa:4096 \
+  -keyout key.pem \
+  -out cert.pem \
+  -days 365 \
+  -nodes \
+  -subj "/C=US/ST=Texas/L=Houston/O=NASA JSC/OU=EC4/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+
+cd ..
+```
+
+**Windows PowerShell Alternative:**
+```powershell
+# Using built-in New-SelfSignedCertificate (Windows only)
+$cert = New-SelfSignedCertificate -DnsName "localhost" -CertStoreLocation "cert:\LocalMachine\My"
+$certPath = "cert:\LocalMachine\My\$($cert.Thumbprint)"
+
+# Export certificate
+$pwd = ConvertTo-SecureString -String "password" -Force -AsPlainText
+Export-PfxCertificate -Cert $certPath -FilePath ssl\cert.pfx -Password $pwd
+
+# Note: You'll need to convert .pfx to .pem format or use Streamlit's pfx support
+```
+
+---
+
+#### Option D: NASA IT Certificate Authority (Production Use)
+
+**For production deployment or if you want properly trusted certificates:**
+
+1. Contact NASA IT or your security team
+2. Request an SSL certificate for your hostname
+3. Provide Certificate Signing Request (CSR):
+   ```bash
+   openssl req -new -newkey rsa:4096 -nodes \
+     -keyout ssl/key.pem \
+     -out ssl/csr.pem \
+     -subj "/C=US/ST=Texas/L=Houston/O=NASA JSC/OU=EC4/CN=your-nasa-hostname"
+   ```
+4. Submit `csr.pem` to NASA IT
+5. Receive signed certificate and save as `ssl/cert.pem`
+
+**Note**: This option is only needed for production deployments on NASA servers, not for local laptop development.
+
+---
+
+#### Comparison Table
+
+| Method | Pros | Cons | Best For |
+|--------|------|------|----------|
+| **Script (Option A)** | Quick, no installation | Browser warnings | Quick setup, first time users |
+| **mkcert (Option B)** | No warnings, trusted | Requires installation | Best development experience |
+| **OpenSSL (Option C)** | Full control, portable | Browser warnings | Advanced users, specific requirements |
+| **NASA CA (Option D)** | Properly trusted | Requires IT approval, time | Production deployments |
+
+**Recommendation**: Use **Option A** (script) to get started quickly, then switch to **Option B** (mkcert) for a better development experience.
 
 ### 4. Register OAuth Application with NASA Launchpad
 
